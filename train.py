@@ -12,12 +12,14 @@ import argparse
 import json
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
-# 參數解析
-parser = argparse.ArgumentParser(description='OPF Training Script')
-parser.add_argument('--epochs', type=int, default=10, help='number of epochs to train')
-parser.add_argument('--batch_size', type=int, default=4, help='input batch size')
-parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
-args = parser.parse_args()
+# 讀取 config.json 文件
+with open('config.json', 'r') as f:
+    config = json.load(f)
+
+# 取得超參數
+epochs = config.get("epochs", 10)
+batch_size = config.get("batch_size", 64)
+lr = config.get("learning_rate", 0.001)
 
 # 設置隨機種子
 torch.manual_seed(42)
@@ -27,19 +29,20 @@ train_ds = opf.OPFDataset('data', case_name='pglib_opf_case14_ieee', split='trai
 val_ds = opf.OPFDataset('data', case_name='pglib_opf_case14_ieee', split='val')
 
 # 創建數據加載器
-train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True)
-val_loader = DataLoader(val_ds, batch_size=args.batch_size)
+train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
+val_loader = DataLoader(val_ds, batch_size=batch_size)
 
 # 初始化模型
 data = train_ds[0]
 model = to_hetero(M.Model(), data.metadata())
 
 # 檢查是否有可用的GPU (apple silicon使用MPS)
-device = torch.device('cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu')
+# device = torch.device('cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu')
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model = model.to(device)
 
 # 初始化優化器和學習率調度器
-optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 scheduler = ReduceLROnPlateau(optimizer, 'min', patience=5)
 
 # 設置TensorBoard
@@ -60,10 +63,10 @@ def validate(model, val_loader):
 
 # 訓練循環
 best_val_loss = float('inf')
-for epoch in tqdm(range(args.epochs), desc="Epochs"):
+for epoch in tqdm(range(epochs), desc="Epochs"):
     model.train()
     epoch_loss = 0.0
-    for batch in tqdm(train_loader, desc=f"Epoch {epoch+1}/{args.epochs}", leave=False):
+    for batch in tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs}", leave=False):
         batch = batch.to(device)
         optimizer.zero_grad()
         out = model(batch.x_dict, batch.edge_index_dict)
@@ -94,7 +97,7 @@ for epoch in tqdm(range(args.epochs), desc="Epochs"):
 # 保存最終模型和配置
 final_model_path = os.path.join(log_dir, 'final_model.pth')
 torch.save({
-    'epoch': args.epochs,
+    'epoch': epochs,
     'model_state_dict': model.state_dict(),
     'optimizer_state_dict': optimizer.state_dict(),
     'train_loss': avg_train_loss,
@@ -103,9 +106,9 @@ torch.save({
 
 # 儲存超參數設定
 config = {
-    'epochs': args.epochs,
-    'batch_size': args.batch_size,
-    'learning_rate': args.lr,
+    'epochs': epochs,
+    'batch_size': batch_size,
+    'learning_rate': lr,
     'model_architecture': str(model),
     'optimizer': str(optimizer),
     'scheduler': str(scheduler),
