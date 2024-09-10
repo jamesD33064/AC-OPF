@@ -4,6 +4,7 @@ from torch_geometric.nn import GraphConv, to_hetero
 from torch_geometric.datasets import opf
 # from torch_geometric.datasets import OPFDataset
 from torch_geometric.loader import DataLoader
+import model as M
 
 # Load the 14-bus OPFData FullTopology dataset training split and store it in the
 # directory 'data'. Each record is a `torch_geometric.data.HeteroData`.
@@ -13,21 +14,10 @@ train_ds = opf.OPFDataset('data', case_name='pglib_opf_case14_ieee', split='trai
 # Batch and shuffle.
 training_loader = DataLoader(train_ds, batch_size=4, shuffle=True)
 
-# A simple model to predict the generator active and reactive power outputs.
-class Model(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.conv1 = GraphConv(-1, 16)
-        self.conv2 = GraphConv(16, 2)
-    def forward(self, x, edge_index):
-        x = self.conv1(x, edge_index).relu()
-        x = self.conv2(x, edge_index)
-        return x
-
 # Initialise the model.
 # data.metadata() here refers to the PyG graph metadata, not the OPFData metadata.
 data = train_ds[0]
-model = to_hetero(Model(), data.metadata())
+model = to_hetero(M.Model(), data.metadata())
 with torch.no_grad(): # Initialize lazy modules.
     out = model(data.x_dict, data.edge_index_dict)
     # Train with MSE loss for one epoch.
