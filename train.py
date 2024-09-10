@@ -57,6 +57,8 @@ def validate(model, val_loader):
         for batch in val_loader:
             batch = batch.to(device)
             out = model(batch.x_dict, batch.edge_index_dict)
+            # out是預測結果，batch['generator'].y是真實結果
+            # 使用 mse_Loss 計算損失
             loss = F.mse_loss(out['generator'], batch['generator'].y)
             total_loss += loss.item()
     return total_loss / len(val_loader)
