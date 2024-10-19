@@ -11,6 +11,7 @@ import os
 import argparse
 import json
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+from dataset.custom_opf_dataset import CustomOPFDataset
 
 # 讀取 config.json 文件
 with open('config.json', 'r') as f:
@@ -25,8 +26,12 @@ lr = config.get("learning_rate", 0.001)
 torch.manual_seed(42)
 
 # 加載數據集
-train_ds = opf.OPFDataset('data', case_name='pglib_opf_case14_ieee', split='train')
-val_ds = opf.OPFDataset('data', case_name='pglib_opf_case14_ieee', split='val')
+dataset = CustomOPFDataset(root='./dataset') 
+
+total_length = len(dataset)
+train_length = int(total_length * 0.8)
+val_length = total_length - train_length
+train_ds, val_ds = torch.utils.data.random_split(dataset, [train_length, val_length])
 
 # 創建數據加載器
 train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
@@ -57,9 +62,8 @@ def validate(model, val_loader):
         for batch in val_loader:
             batch = batch.to(device)
             out = model(batch.x_dict, batch.edge_index_dict)
-            # out是預測結果，batch['generator'].y是真實結果
             # 使用 mse_Loss 計算損失
-            loss = F.mse_loss(out['generator'], batch['generator'].y)
+            loss = F.mse_loss(out['bus'], batch['bus', 'connected_to', 'bus'].y)
             total_loss += loss.item()
     return total_loss / len(val_loader)
 
@@ -72,7 +76,7 @@ for epoch in tqdm(range(epochs), desc="Epochs"):
         batch = batch.to(device)
         optimizer.zero_grad()
         out = model(batch.x_dict, batch.edge_index_dict)
-        loss = F.mse_loss(out['generator'], batch['generator'].y)
+        loss = F.mse_loss(out['bus'], batch['bus', 'connected_to', 'bus'].y)
         loss.backward()
         optimizer.step()
         epoch_loss += loss.item()
